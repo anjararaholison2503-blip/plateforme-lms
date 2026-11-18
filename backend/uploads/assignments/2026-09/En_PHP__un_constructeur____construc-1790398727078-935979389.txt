@@ -1,0 +1,1 @@
+En PHP, un constructeur (__construct) est une méthode magique qui s'exécute automatiquement dès que vous créez une nouvelle instance (un objet) d'une classe.Il sert principalement à initialiser les propriétés de l'objet et à exécuter les tâches de configuration nécessaires au bon fonctionnement de cet objet dès sa naissance.

@@ -1,0 +1,1306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+enum UnitType {
+  ESTABLISHMENT
+  FACULTY
+  DEPARTMENT
+  PROGRAM
+  LEVEL
+  CLASS
+  GROUP
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  ACCOUNTANT
+  PARENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum InstitutionType {
+  UNIVERSITY
+  HIGH_SCHOOL
+  MIDDLE_SCHOOL
+  CUSTOM
+}
+
+// ==================== CONFIGURATION PLATEFORME ====================
+model PlatformSettings {
+  id                Int     @id @default(autoincrement())
+  platformName      String  @map("platform_name")
+  platformShortName String? @map("platform_short_name")
+  description       String? @db.Text
+  logoUrl           String? @map("logo_url")
+  faviconUrl        String? @map("favicon_url")
+  primaryColor      String  @default("#3B82F6") @map("primary_color")
+  secondaryColor    String  @default("#1E40AF") @map("secondary_color")
+  defaultLanguage   String  @default("fr") @map("default_language")
+  timezone          String  @default("Africa/Antananarivo")
+  currency          String  @default("MGA")
+  currencySymbol    String  @default("Ar") @map("currency_symbol")
+  academicYear      String? @map("academic_year")
+  gradeScaleMax     Decimal @default(20.00) @map("grade_scale_max") @db.Decimal(4, 2)
+  gradeScaleMin     Decimal @default(0.00) @map("grade_scale_min") @db.Decimal(4, 2)
+  passingGrade      Decimal @default(10.00) @map("passing_grade") @db.Decimal(4, 2)
+  contactEmail      String? @map("contact_email")
+  contactPhone      String? @map("contact_phone")
+  address           String? @db.Text
+
+  // ═══════════════ NOUVEAUX CHAMPS ═══════════════
+  institutionType     InstitutionType @default(UNIVERSITY) @map("institution_type")
+  hierarchyModel      Json?           @map("hierarchy_model") // Modèle personnalisé complet
+  customLabels        Json?           @map("custom_labels") // Vocabulaire personnalisé
+  onboardingDone      Boolean         @default(false) @map("onboarding_done")
+  academicMonthsCount Int             @default(9) @map("academic_months_count")
+  academicStartMonth  Int             @default(10) @map("academic_start_month") // Octobre = 10
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// ==================== STRUCTURE ÉTABLISSEMENT ====================
+model InstitutionUnit {
+  id                  Int                 @id @default(autoincrement())
+  parentId            Int?                @map("parent_id")
+  name                String
+  code                String?             @unique
+  type                UnitType
+  description         String?             @db.Text
+  displayOrder        Int                 @default(0) @map("display_order")
+  isActive            Boolean             @default(true) @map("is_active")
+  metadata            Json?
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  courseClasses       CourseClass[]       @relation("CourseClass") // ← AJOUTER
+  teachingUnits       TeachingUnit[]      @relation("TeachingUnitUnit") // ← AJOUTER
+  teachingUnitClasses TeachingUnitClass[] @relation("TeachingUnitClassClass")
+
+  parent         InstitutionUnit?  @relation("UnitHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children       InstitutionUnit[] @relation("UnitHierarchy")
+  users          User[]
+  calendarEvents CalendarEvent[]
+  courses        Course[] // ← AJOUTER CETTE LIGNE
+
+  // ═══════════════ NOUVELLES RELATIONS (Finance + Inscription) ═══════════════
+  feesAsClass        Fee[]               @relation("FeeClass")
+  feesAsLevel        Fee[]               @relation("FeeLevel")
+  desiredEnrollments StudentEnrollment[] @relation("EnrollmentDesiredClass")
+  programEnrollments StudentEnrollment[] @relation("EnrollmentDesiredProgram")
+
+  @@index([parentId])
+  @@index([type])
+  @@map("institution_units")
+}
+
+// ==================== UTILISATEURS ====================
+model User {
+  id          Int        @id @default(autoincrement())
+  email       String     @unique
+  password    String
+  matricule   String?    @unique @db.VarChar(30) // ← AJOUTER
+  firstName   String     @map("first_name")
+  lastName    String     @map("last_name")
+  phone       String?
+  avatarUrl   String?    @map("avatar_url")
+  role        UserRole   @default(STUDENT)
+  status      UserStatus @default(PENDING)
+  unitId      Int?       @map("unit_id")
+  lastLoginAt DateTime?  @map("last_login_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  
+  unit                 InstitutionUnit?     @relation(fields: [unitId], references: [id])
+  refreshTokens        RefreshToken[]
+  createdEvents        CalendarEvent[]
+  createdTeachingUnits TeachingUnit[]       @relation("TeachingUnitCreator") // ← AJOUTER
+  createdCourses       Course[]             @relation("CourseCreator") // ← AJOUTER
+  courseTeachers       CourseTeacher[]      @relation("CourseTeacher") // ← AJOUTER
+  enrollments          Enrollment[]         @relation("Enrollment") // ← AJOUTER
+  uploadedMaterials    CourseMaterial[]     @relation("CourseMaterialUploader") // ← AJOUTER
+  notifications        Notification[]       @relation("UserNotifications")
+  courseAnnouncements  CourseAnnouncement[] @relation("CourseAnnouncementAuthor")
+  createdAcademicYears AcademicYear[]       @relation("AcademicYearCreator")
+  forumTopics          ForumTopic[]         @relation("ForumAuthor")
+  forumReplies         ForumReply[]         @relation("ForumReplyAuthor")
+  
+  // ═══════════════ NOUVELLES RELATIONS (Inscription administrative) ═══════════════
+  studentEnrollments  StudentEnrollment[]    @relation("StudentEnrollments")
+  reviewedEnrollments StudentEnrollment[]    @relation("EnrollmentReviewer")
+  finalDecisions      StudentEnrollment[]    @relation("EnrollmentFinalDecision")
+  studentInvoices     Invoice[]              @relation("StudentInvoices")
+  studentPayments     Payment[]              @relation("StudentPayments")
+  createdPayments     Payment[]              @relation("PaymentCreator")
+  studentDiscounts    StudentDiscount[]      @relation("StudentDiscounts")
+  approvedDiscounts   StudentDiscount[]      @relation("DiscountApprover")
+  createdAssignments  Assignment[]           @relation("AssignmentCreator")
+  submissions         AssignmentSubmission[] @relation("StudentSubmissions")
+  gradedSubmissions   AssignmentSubmission[] @relation("SubmissionGrader")
+  quizzesCreated      Quiz[]                 @relation("QuizCreatedBy")
+  quizAttempts        QuizAttempt[]          @relation("QuizAttemptStudent")
+
+  examsCreated    Exam[]         @relation("ExamCreatedBy")
+  examAttempts    ExamAttempt[]  @relation("ExamAttemptStudent")
+
+  @@index([matricule]) // ← AJOUTER
+  @@index([email])
+  @@index([role])
+  @@index([unitId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(500)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ==================== CALENDRIER / AGENDA ====================
+enum EventType {
+  COURSE
+  EXAM
+  HOLIDAY
+  MEETING
+  DEADLINE
+  OTHER
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  UNIT
+}
+
+model CalendarEvent {
+  id          Int             @id @default(autoincrement())
+  title       String
+  description String?         @db.Text
+  type        EventType       @default(OTHER)
+  visibility  EventVisibility @default(PUBLIC)
+  startDate   DateTime        @map("start_date")
+  endDate     DateTime        @map("end_date")
+  allDay      Boolean         @default(false) @map("all_day")
+  location    String?
+  color       String?         @default("#3B82F6")
+  unitId      Int?            @map("unit_id")
+  createdById Int             @map("created_by_id")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  unit      InstitutionUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([startDate])
+  @@index([unitId])
+  @@index([createdById])
+  @@map("calendar_events")
+}
+
+// ==================== COURS ====================
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  PENDING
+}
+
+model Course {
+  id          Int          @id @default(autoincrement())
+  title       String
+  code        String       @unique
+  description String?      @db.Text
+  credits     Int          @default(0)
+  hours       Int          @default(0)
+  status      CourseStatus @default(DRAFT)
+  color       String?      @default("#3B82F6")
+  coverUrl    String?      @map("cover_url")
+  unitId      Int?         @map("unit_id")
+  createdById Int          @map("created_by_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  // ═══════════════ NOUVEAUX CHAMPS ═══════════════
+  teachingUnitId Int?                 @map("teaching_unit_id")
+  coefficient    Int                  @default(1)
+  modules        CourseModule[]
+  announcements  CourseAnnouncement[]
+  forumTopics    ForumTopic[]
+  // Relations
+  unit         InstitutionUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  teachingUnit TeachingUnit?    @relation("TeachingUnitCourses", fields: [teachingUnitId], references: [id], onDelete: SetNull) // ← AJOUTER
+  createdBy    User             @relation("CourseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  sessions     CourseSession[]
+  teachers     CourseTeacher[]
+  classes      CourseClass[]
+  materials    CourseMaterial[]
+
+  //  // ═══════════════ NOUVELLES RELATIONS ═══════════════
+  //chatConversations ChatConversation[]   @relation("CourseConversations")   // (pour plus tard, chatbot)
+  assignments Assignment[]
+  quizzes     Quiz[]
+
+   exams           Exam[]
+
+  @@index([unitId])
+  @@index([status])
+  @@index([code])
+  @@index([teachingUnitId]) // ← AJOUTER
+  @@map("courses")
+}
+
+model CourseSession {
+  id           Int      @id @default(autoincrement())
+  courseId     Int      @map("course_id")
+  name         String
+  code         String   @unique
+  academicYear String   @map("academic_year")
+  startDate    DateTime @map("start_date")
+  endDate      DateTime @map("end_date")
+  capacity     Int      @default(30)
+  description  String?  @db.Text
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+
+  @@index([courseId])
+  @@index([academicYear])
+  @@map("course_sessions")
+}
+
+model CourseTeacher {
+  id        Int      @id @default(autoincrement())
+  courseId  Int      @map("course_id")
+  teacherId Int      @map("teacher_id")
+  role      String   @default("MAIN") // MAIN, ASSISTANT
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher User   @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, teacherId])
+  @@index([courseId])
+  @@index([teacherId])
+  @@map("course_teachers")
+}
+
+model Enrollment {
+  id          Int              @id @default(autoincrement())
+  sessionId   Int              @map("session_id")
+  studentId   Int              @map("student_id")
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now()) @map("enrolled_at")
+  completedAt DateTime?        @map("completed_at")
+  grade       Decimal?         @db.Decimal(5, 2)
+  notes       String?          @db.Text
+
+  session CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User          @relation("Enrollment", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@map("enrollments")
+}
+
+//mis ç jours
+// ==================== COURS ↔ CLASSE ====================
+model CourseClass {
+  id        Int      @id @default(autoincrement())
+  courseId  Int      @map("course_id")
+  classId   Int      @map("class_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  class  InstitutionUnit @relation("CourseClass", fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, classId])
+  @@index([courseId])
+  @@index([classId])
+  @@map("course_classes")
+}
+
+// ==================== UNITÉ D'ENSEIGNEMENT (UE) ====================
+enum Semester {
+  S1
+  S2
+  S3
+  S4
+  S5
+  S6
+  S7
+  S8
+  S9
+  S10
+}
+
+model TeachingUnit {
+  id          Int       @id @default(autoincrement())
+  code        String    @unique
+  name        String
+  description String?   @db.Text
+  semester    Semester?
+  unitId      Int?      @map("unit_id") // Rattachée à une filière/niveau (optionnel)
+  createdById Int       @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  unit      InstitutionUnit?    @relation("TeachingUnitUnit", fields: [unitId], references: [id], onDelete: SetNull)
+  createdBy User                @relation("TeachingUnitCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  courses   Course[]            @relation("TeachingUnitCourses")
+  classes   TeachingUnitClass[]
+
+  @@index([unitId])
+  @@index([semester])
+  @@map("teaching_units")
+}
+
+// Table de liaison UE ↔ Classes (une UE peut être attribuée à plusieurs classes)
+model TeachingUnitClass {
+  id             Int      @id @default(autoincrement())
+  teachingUnitId Int      @map("teaching_unit_id")
+  classId        Int      @map("class_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  teachingUnit TeachingUnit    @relation(fields: [teachingUnitId], references: [id], onDelete: Cascade)
+  class        InstitutionUnit @relation("TeachingUnitClassClass", fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingUnitId, classId])
+  @@index([teachingUnitId])
+  @@index([classId])
+  @@map("teaching_unit_classes")
+}
+
+// ==================== MATÉRIELS DE COURS (SUPPORTS) ====================
+
+enum MaterialType {
+  PDF
+  VIDEO
+  IMAGE
+  ZIP
+  DOCUMENT
+  LINK
+  OTHER
+}
+
+enum MaterialVisibility {
+  STUDENTS
+  TEACHERS
+  ALL
+  PRIVATE
+}
+
+enum ExpirationStatus {
+  ACTIVE // Actif, expire dans plus de 7 jours
+  EXPIRING_SOON // Expire dans moins de 7 jours
+  PENDING_REVIEW // Expiré, en attente de décision enseignant
+  EXPIRED // Expiré confirmé
+  EXTENDED // Durée prolongée
+  ARCHIVED // Archivé manuellement
+}
+
+model CourseMaterial {
+  id           Int                @id @default(autoincrement())
+  courseId     Int                @map("course_id")
+  uploadedById Int                @map("uploaded_by_id")
+  title        String
+  description  String?            @db.Text
+  type         MaterialType       @default(OTHER)
+  fileUrl      String             @map("file_url")
+  fileName     String             @map("file_name")
+  fileSize     Int                @map("file_size")
+  mimeType     String             @map("mime_type")
+  visibility   MaterialVisibility @default(STUDENTS)
+
+  // Cycle de vie
+  publishedAt          DateTime         @default(now()) @map("published_at")
+  expiresAt            DateTime?        @map("expires_at")
+  expirationStatus     ExpirationStatus @default(ACTIVE) @map("expiration_status")
+  gracePeriodEndsAt    DateTime?        @map("grace_period_ends_at")
+  expirationNotifiedAt DateTime?        @map("expiration_notified_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  course        Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploadedBy    User           @relation("CourseMaterialUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([courseId])
+  @@index([uploadedById])
+  @@index([expiresAt])
+  @@index([expirationStatus])
+  @@map("course_materials")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+enum NotificationType {
+  MATERIAL_EXPIRING // J-7 : matériel va expirer
+  MATERIAL_EXPIRING_URGENT // J-1 : dernier jour
+  MATERIAL_EXPIRED // Jour J : expiration
+  MATERIAL_EXTENDED // Prolongation
+  MATERIAL_DELETED // Suppression manuelle
+  COURSE_ANNOUNCEMENT
+  GRADE_PUBLISHED
+  ENROLLMENT
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP // Notification dans l'interface
+  EMAIL // Envoyé par email
+  SMS // Envoyé par SMS (désactivé pour l'instant)
+}
+
+enum NotificationStatus {
+  PENDING // En attente d'envoi
+  SENT // Envoyée
+  FAILED // Échec d'envoi
+  READ // Lue par l'utilisateur
+}
+
+model Notification {
+  id      Int                 @id @default(autoincrement())
+  userId  Int                 @map("user_id")
+  type    NotificationType
+  title   String
+  message String              @db.Text
+  data    Json? // Données contextuelles (materialId, courseId, etc.)
+  channel NotificationChannel @default(IN_APP)
+  status  NotificationStatus  @default(PENDING)
+
+  // Lien optionnel vers une ressource
+  materialId Int? @map("material_id")
+
+  // Timestamps
+  readAt    DateTime? @map("read_at")
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  user     User            @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  material CourseMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ==================== PROGRAMME / SYLLABUS ====================
+
+model CourseModule {
+  id          Int      @id @default(autoincrement())
+  courseId    Int      @map("course_id")
+  title       String
+  description String?  @db.Text
+  orderIndex  Int      @default(0) @map("order_index")
+  duration    Int? // durée estimée en heures
+  isPublished Boolean  @default(true) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  course  Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons CourseLesson[]
+
+  @@index([courseId])
+  @@index([orderIndex])
+  @@map("course_modules")
+}
+
+model CourseLesson {
+  id          Int               @id @default(autoincrement())
+  moduleId    Int               @map("module_id")
+  title       String
+  content     String?           @db.Text // contenu HTML ou Markdown
+  contentType LessonContentType @default(TEXT) @map("content_type")
+  videoUrl    String?           @map("video_url")
+  duration    Int? // durée estimée en minutes
+  orderIndex  Int               @default(0) @map("order_index")
+  isPublished Boolean           @default(true) @map("is_published")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  module CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+  @@index([orderIndex])
+  @@map("course_lessons")
+}
+
+enum LessonContentType {
+  TEXT
+  VIDEO
+  LINK
+  FILE
+  MIXED
+}
+
+// ==================== ANNONCES DE COURS ====================
+
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+model CourseAnnouncement {
+  id        Int                  @id @default(autoincrement())
+  courseId  Int                  @map("course_id")
+  authorId  Int                  @map("author_id")
+  title     String
+  content   String               @db.Text
+  priority  AnnouncementPriority @default(NORMAL)
+  isPinned  Boolean              @default(false) @map("is_pinned")
+  expiresAt DateTime?            @map("expires_at")
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User   @relation("CourseAnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([isPinned])
+  @@index([expiresAt])
+  @@map("course_announcements")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// MODULE FINANCE
+// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// ─────────────── TYPES DE FRAIS ───────────────
+model FeeType {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique // INSCRIPTION, SCOLARITE, EXAMEN, BIBLIO
+  name         String // Nom affiché
+  description  String?  @db.Text
+  isRecurring  Boolean  @default(false) @map("is_recurring") // Récurrent ou ponctuel
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  fees Fee[]
+
+  @@map("fee_types")
+}
+
+// ─────────────── FRAIS PAR CLASSE/NIVEAU ───────────────
+model Fee {
+  id           Int       @id @default(autoincrement())
+  feeTypeId    Int       @map("fee_type_id")
+  classId      Int?      @map("class_id") // Classe spécifique (optionnel)
+  levelId      Int?      @map("level_id") // Niveau (L1, L2...) (optionnel)
+  academicYear String    @map("academic_year") // 2025-2026
+  amount       Decimal   @db.Decimal(12, 2) // Montant
+  currency     String    @default("MGA")
+  dueDate      DateTime? @map("due_date") // Échéance
+  isActive     Boolean   @default(true) @map("is_active")
+  notes        String?   @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  feeType  FeeType          @relation(fields: [feeTypeId], references: [id], onDelete: Cascade)
+  class    InstitutionUnit? @relation("FeeClass", fields: [classId], references: [id], onDelete: SetNull)
+  level    InstitutionUnit? @relation("FeeLevel", fields: [levelId], references: [id], onDelete: SetNull)
+  invoices Invoice[]
+
+  @@index([classId])
+  @@index([levelId])
+  @@index([academicYear])
+  @@map("fees")
+}
+
+// ─────────────── FACTURES ───────────────
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  reference     String        @unique
+  studentId     Int           @map("student_id")
+  feeId         Int           @map("fee_id")
+  enrollmentId  Int?          @map("enrollment_id")
+  amount        Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @default(0) @map("paid_amount") @db.Decimal(12, 2)
+  currency      String        @default("MGA")
+  status        InvoiceStatus @default(DRAFT)
+  dueDate       DateTime      @map("due_date")
+  issuedAt      DateTime      @default(now()) @map("issued_at")
+  notes         String?       @db.Text
+  installmentNo Int?          @map("installment_no")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  student        User               @relation("StudentInvoices", fields: [studentId], references: [id], onDelete: Cascade)
+  fee            Fee                @relation(fields: [feeId], references: [id], onDelete: Cascade)
+  enrollment     StudentEnrollment? @relation("EnrollmentInvoices", fields: [enrollmentId], references: [id], onDelete: SetNull)
+  payments       Payment[]
+  reminders      PaymentReminder[]
+  academicYearId Int?               @map("academic_year_id") // ← AJOUTER
+  academicYear   AcademicYear?      @relation("InvoiceAcademicYear", fields: [academicYearId], references: [id], onDelete: SetNull) // ← AJOUTER
+
+  @@index([studentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([enrollmentId])
+  @@map("invoices")
+}
+
+// ─────────────── PAIEMENTS ───────────────
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  MOBILE_MONEY_MVOLA
+  MOBILE_MONEY_ORANGE
+  MOBILE_MONEY_AIRTEL
+  STRIPE_CARD
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+model Payment {
+  id        Int           @id @default(autoincrement())
+  reference String        @unique // PAY-2026-0001
+  invoiceId Int           @map("invoice_id")
+  studentId Int           @map("student_id")
+  amount    Decimal       @db.Decimal(12, 2)
+  currency  String        @default("MGA")
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+
+  // Références externes (Mobile Money, Stripe)
+  externalRef   String? @map("external_ref") // ID transaction externe
+  transactionId String? @map("transaction_id") // ID fournisseur
+
+  // Métadonnées
+  paidAt      DateTime? @map("paid_at")
+  metadata    Json?
+  notes       String?   @db.Text
+  createdById Int       @map("created_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  student   User     @relation("StudentPayments", fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("PaymentCreator", fields: [createdById], references: [id])
+  receipt   Receipt?
+
+  @@index([invoiceId])
+  @@index([studentId])
+  @@index([status])
+  @@index([method])
+  @@map("payments")
+}
+
+// ─────────────── REÇUS ───────────────
+model Receipt {
+  id          Int      @id @default(autoincrement())
+  reference   String   @unique // REC-2026-0001
+  paymentId   Int      @unique @map("payment_id")
+  fileUrl     String?  @map("file_url") // PDF généré
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("receipts")
+}
+
+// ─────────────── ÉCHÉANCIERS ───────────────
+model PaymentSchedule {
+  id           Int      @id @default(autoincrement())
+  academicYear String   @map("academic_year")
+  name         String // "3 tranches", "Mensuel"
+  description  String?  @db.Text
+  installments Json // [{label: "T1", date: "2025-10-01", percentage: 33}, ...]
+  isDefault    Boolean  @default(false) @map("is_default")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([academicYear])
+  @@map("payment_schedules")
+}
+
+// ─────────────── RAPPELS DE PAIEMENT ───────────────
+enum ReminderType {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model PaymentReminder {
+  id        Int            @id @default(autoincrement())
+  invoiceId Int            @map("invoice_id")
+  type      ReminderType
+  status    ReminderStatus @default(PENDING)
+  message   String         @db.Text
+  sentTo    String?        @map("sent_to") // email ou téléphone
+  sentAt    DateTime?      @map("sent_at")
+  error     String?        @db.Text
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payment_reminders")
+}
+
+// ─────────────── BOURSES / RÉDUCTIONS ───────────────
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FULL_EXEMPTION
+}
+
+model Discount {
+  id          Int          @id @default(autoincrement())
+  name        String // "Bourse d'excellence"
+  description String?      @db.Text
+  type        DiscountType
+  value       Decimal      @db.Decimal(12, 2) // Montant ou %
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  studentDiscounts StudentDiscount[]
+
+  @@map("discounts")
+}
+
+model StudentDiscount {
+  id           Int       @id @default(autoincrement())
+  studentId    Int       @map("student_id")
+  discountId   Int       @map("discount_id")
+  academicYear String    @map("academic_year")
+  approvedById Int?      @map("approved_by_id")
+  approvedAt   DateTime? @map("approved_at")
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  student    User     @relation("StudentDiscounts", fields: [studentId], references: [id], onDelete: Cascade)
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  approvedBy User?    @relation("DiscountApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, discountId, academicYear])
+  @@index([studentId])
+  @@map("student_discounts")
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODULE INSCRIPTION ADMINISTRATIVE
+// ═══════════════════════════════════════════════════════════
+
+enum StudentEnrollmentStatus {
+  PENDING_DOCUMENTS // En attente des documents
+  PENDING_REVIEW // En attente de validation admin
+  PENDING_PAYMENT // Validé admin, en attente de paiement
+  ENROLLED // Inscrit et payé
+  COMPLETED // Année terminée avec succès (passant)
+  REPEATED // Année redoublée
+  FAILED // Échec (exclusion)
+  WITHDRAWN // Abandon en cours d'année
+  CANCELLED // Annulé par l'étudiant
+  REJECTED // Refusé par l'admin
+}
+
+enum FinalResult {
+  ADMIS
+  REDOUBLE
+  EXCLU
+}
+
+model StudentEnrollment {
+  id        Int    @id @default(autoincrement())
+  reference String @unique
+
+  studentId      Int?   @map("student_id")
+  applicantEmail String @map("applicant_email")
+  applicantName  String @map("applicant_name")
+
+  personalInfo      Json  @map("personal_info")
+  contactInfo       Json  @map("contact_info")
+  documents         Json?
+  previousEducation Json? @map("previous_education")
+
+  desiredClassId   Int? @map("desired_class_id")
+  desiredProgramId Int? @map("desired_program_id")
+
+  status          StudentEnrollmentStatus @default(PENDING_DOCUMENTS)
+  academicYear    String                  @map("academic_year")
+  academicYearId  Int?                    @map("academic_year_id") // ← AJOUTER
+  academicYearRef AcademicYear?           @relation("EnrollmentAcademicYear", fields: [academicYearId], references: [id], onDelete: SetNull) // ← AJOUTER
+
+  // Résultats de fin d'année
+  finalResult       FinalResult? @map("final_result")
+  finalAverage      Decimal?     @map("final_average") @db.Decimal(5, 2)
+  validatedCredits  Int?         @map("validated_credits")
+  totalCredits      Int?         @map("total_credits")
+  finalDecisionAt   DateTime?    @map("final_decision_at")
+  finalDecisionById Int?         @map("final_decision_by_id")
+
+  // Réinscription
+  previousEnrollmentId Int?     @map("previous_enrollment_id")
+  isReenrollment       Boolean  @default(false) @map("is_reenrollment")
+  isRepeating          Boolean  @default(false) @map("is_repeating")
+  isLateReenrollment   Boolean  @default(false) @map("is_late_reenrollment")
+  latePenalty          Decimal? @map("late_penalty") @db.Decimal(12, 2)
+
+  // Validation
+  reviewedById    Int?      @map("reviewed_by_id")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewNotes     String?   @map("review_notes") @db.Text
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  // Deadlines
+  reenrollmentDeadline DateTime? @map("reenrollment_deadline")
+  suspendedAt          DateTime? @map("suspended_at")
+  blockedAt            DateTime? @map("blocked_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  student            User?               @relation("StudentEnrollments", fields: [studentId], references: [id], onDelete: SetNull)
+  reviewedBy         User?               @relation("EnrollmentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  finalDecisionBy    User?               @relation("EnrollmentFinalDecision", fields: [finalDecisionById], references: [id], onDelete: SetNull)
+  desiredClass       InstitutionUnit?    @relation("EnrollmentDesiredClass", fields: [desiredClassId], references: [id], onDelete: SetNull)
+  desiredProgram     InstitutionUnit?    @relation("EnrollmentDesiredProgram", fields: [desiredProgramId], references: [id], onDelete: SetNull)
+  previousEnrollment StudentEnrollment?  @relation("StudentEnrollmentChain", fields: [previousEnrollmentId], references: [id], onDelete: SetNull)
+  nextEnrollments    StudentEnrollment[] @relation("StudentEnrollmentChain")
+  invoices           Invoice[]           @relation("EnrollmentInvoices")
+
+  @@index([status])
+  @@index([academicYear])
+  @@index([studentId])
+  @@index([reference])
+  @@map("student_enrollments")
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANNÉES ACADÉMIQUES
+// ═══════════════════════════════════════════════════════════
+
+enum AcademicYearStatus {
+  PLANNED // Planifiée
+  ACTIVE // En cours
+  CLOSED // Terminée
+  ARCHIVED // Archivée
+}
+
+model AcademicYear {
+  id          Int                @id @default(autoincrement())
+  label       String             @unique // "2025-2026"
+  startDate   DateTime           @map("start_date")
+  endDate     DateTime           @map("end_date")
+  status      AcademicYearStatus @default(PLANNED)
+  description String?            @db.Text
+  isDefault   Boolean            @default(false) @map("is_default")
+
+  // Périodes / semestres
+  hasSemesters   Boolean   @default(false) @map("has_semesters")
+  semester1Start DateTime? @map("semester_1_start")
+  semester1End   DateTime? @map("semester_1_end")
+  semester2Start DateTime? @map("semester_2_start")
+  semester2End   DateTime? @map("semester_2_end")
+
+  // Paramètres financiers
+  registrationOpenDate  DateTime? @map("registration_open_date")
+  registrationCloseDate DateTime? @map("registration_close_date")
+  reenrollmentDeadline  DateTime? @map("reenrollment_deadline")
+
+  // Audit
+  createdById Int?     @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  createdBy          User?               @relation("AcademicYearCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  studentEnrollments StudentEnrollment[] @relation("EnrollmentAcademicYear")
+  invoices           Invoice[]           @relation("InvoiceAcademicYear")
+
+  @@index([status])
+  @@index([label])
+  @@map("academic_years")
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODULE DEVOIRS
+// ═══════════════════════════════════════════════════════════
+
+enum AssignmentStatus {
+  DRAFT // Brouillon (invisible par les étudiants)
+  PUBLISHED // Publié (visible, soumission possible)
+  CLOSED // Fermé (date limite passée)
+  ARCHIVED // Archivé
+}
+
+enum SubmissionStatus {
+  SUBMITTED // Soumis
+  GRADED // Noté
+  RETURNED // Retourné à l'étudiant
+  RESUBMITTED // Re-soumis
+}
+
+model Assignment {
+  id           Int       @id @default(autoincrement())
+  courseId     Int       @map("course_id")
+  title        String
+  instructions String    @db.Text
+  publishedAt  DateTime? @map("published_at")
+  dueDate      DateTime  @map("due_date")
+  maxScore     Int       @default(20) @map("max_score")
+
+  // Fichier joint par l'enseignant
+  attachmentUrl  String? @map("attachment_url")
+  attachmentName String? @map("attachment_name")
+  attachmentSize Int?    @map("attachment_size")
+
+  // Paramètres
+  allowLateSubmission Boolean @default(true) @map("allow_late_submission")
+  allowResubmission   Boolean @default(false) @map("allow_resubmission")
+
+  status      AssignmentStatus @default(DRAFT)
+  createdById Int              @map("created_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  course      Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy   User                   @relation("AssignmentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+
+  @@index([courseId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("assignments")
+}
+
+model AssignmentSubmission {
+  id           Int @id @default(autoincrement())
+  assignmentId Int @map("assignment_id")
+  studentId    Int @map("student_id")
+
+  // Contenu de la soumission
+  content  String? @db.Text
+  fileUrl  String? @map("file_url")
+  fileName String? @map("file_name")
+  fileSize Int?    @map("file_size")
+  mimeType String? @map("mime_type")
+
+  submittedAt DateTime         @default(now()) @map("submitted_at")
+  isLate      Boolean          @default(false) @map("is_late")
+  status      SubmissionStatus @default(SUBMITTED)
+
+  // Notation
+  score      Decimal?  @db.Decimal(5, 2)
+  feedback   String?   @db.Text
+  gradedAt   DateTime? @map("graded_at")
+  gradedById Int?      @map("graded_by_id")
+  returnedAt DateTime? @map("returned_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // ═══ DÉTECTION IA ═══
+  aiDetectionScore   Float?  @map("ai_detection_score")
+  aiDetectionDetails Json?   @map("ai_detection_details")
+  aiDetectionStatus  String? @default("PENDING") @map("ai_detection_status")
+
+  // Relations
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation("StudentSubmissions", fields: [studentId], references: [id], onDelete: Cascade)
+  gradedBy   User?      @relation("SubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([status])
+  @@map("assignment_submissions")
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODULE QUIZ + ANTI-TRICHE + IA
+// ═══════════════════════════════════════════════════════════
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+  FILL_IN_BLANK
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+  TIMEOUT
+  ABANDONED
+}
+
+model Quiz {
+  id           Int     @id @default(autoincrement())
+  courseId     Int     @map("course_id")
+  title        String
+  description  String? @db.Text
+  duration     Int     @default(30)
+  maxAttempts  Int     @default(1) @map("max_attempts")
+  passingScore Int     @default(10) @map("passing_score")
+
+  // SÉCURITÉ
+  shuffleQuestions Boolean @default(true) @map("shuffle_questions")
+  shuffleAnswers   Boolean @default(true) @map("shuffle_answers")
+  detectTabSwitch  Boolean @default(true) @map("detect_tab_switch")
+  maxTabSwitches   Int     @default(3) @map("max_tab_switches")
+
+  // GÉNÉRATION IA
+  sourceFileUrl      String? @map("source_file_url")
+  sourceFileName     String? @map("source_file_name")
+  aiGenerated        Boolean @default(false) @map("ai_generated")
+  aiGenerationStatus String? @default("PENDING") @map("ai_generation_status")
+
+  status      QuizStatus @default(DRAFT)
+  createdById Int        @map("created_by_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("QuizCreatedBy", fields: [createdById], references: [id])
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([courseId])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id            Int          @id @default(autoincrement())
+  quizId        Int          @map("quiz_id")
+  question      String       @db.Text
+  type          QuestionType @default(MULTIPLE_CHOICE)
+  options       Json?
+  correctAnswer String?      @map("correct_answer") @db.Text
+  explanation   String?      @db.Text
+  points        Int          @default(1)
+  difficulty    String?      @default("MEDIUM")
+  orderIndex    Int          @default(0) @map("order_index")
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@index([quizId])
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id        Int @id @default(autoincrement())
+  quizId    Int @map("quiz_id")
+  studentId Int @map("student_id")
+
+  tabSwitchCount Int     @default(0) @map("tab_switch_count")
+  warnings       Json?
+  isFlagged      Boolean @default(false) @map("is_flagged")
+
+  startedAt   DateTime      @default(now()) @map("started_at")
+  submittedAt DateTime?     @map("submitted_at")
+  score       Decimal?      @db.Decimal(5, 2)
+  status      AttemptStatus @default(IN_PROGRESS)
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student User         @relation("QuizAttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  answers QuizAnswer[]
+
+  @@index([quizId])
+  @@index([studentId])
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id           Int      @id @default(autoincrement())
+  attemptId    Int      @map("attempt_id")
+  questionId   Int      @map("question_id")
+  answer       String?  @db.Text
+  isCorrect    Boolean? @map("is_correct")
+  pointsEarned Decimal? @map("points_earned") @db.Decimal(5, 2)
+
+  attempt  QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("quiz_answers")
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum ExamQuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+model Exam {
+  id           Int          @id @default(autoincrement())
+  courseId     Int          @map("course_id")
+  title        String
+  description  String?      @db.Text
+  duration     Int          @default(60)
+  passingScore Int          @default(10) @map("passing_score")
+  status       ExamStatus   @default(DRAFT)
+  createdById  Int          @map("created_by_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("ExamCreatedBy", fields: [createdById], references: [id])
+  questions ExamQuestion[]
+  attempts  ExamAttempt[]
+
+  @@map("exams")
+}
+
+model ExamQuestion {
+  id            Int              @id @default(autoincrement())
+  examId        Int              @map("exam_id")
+  question      String           @db.Text
+  type          ExamQuestionType @default(SHORT_ANSWER)
+  options       Json?  
+  correctAnswer String?          @map("correct_answer") @db.Text
+  points        Int              @default(1)
+  timeLimit     Int              @default(60) @map("time_limit")
+  orderIndex    Int              @default(0) @map("order_index")
+
+  exam Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@map("exam_questions")
+}
+
+model ExamAttempt {
+  id        Int      @id @default(autoincrement())
+  examId    Int      @map("exam_id")
+  studentId Int      @map("student_id")
+  score     Decimal? @db.Decimal(5, 2)
+  status    String   @default("IN_PROGRESS")
+  startedAt DateTime @default(now()) @map("started_at")
+  submittedAt DateTime? @map("submitted_at")
+
+  exam    Exam @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student User @relation("ExamAttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("exam_attempts")
+}
+
+// ==================== MODULE FORUM ====================
+
+model ForumTopic {
+  id          Int       @id @default(autoincrement())
+  courseId    Int       @map("course_id")
+  authorId    Int       @map("author_id")
+  title       String
+  content     String    @db.Text
+  isPinned    Boolean   @default(false) @map("is_pinned")
+  
+  // Pour la visioconférence
+  meetingLink String?   @map("meeting_link")
+  meetingDate DateTime? @map("meeting_date")
+  
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  course    Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author    User           @relation("ForumAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  replies   ForumReply[]
+
+  @@index([courseId])
+  @@map("forum_topics")
+}
+
+model ForumReply {
+  id        Int      @id @default(autoincrement())
+  topicId   Int      @map("topic_id")
+  authorId  Int      @map("author_id")
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  topic     ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  author    User       @relation("ForumReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([topicId])
+  @@map("forum_replies")
+}

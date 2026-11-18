@@ -1,0 +1,21 @@
+# Dépendances
+node_modules/
+
+# Fichiers d'environnement
+.env
+.env.local
+.http
+
+# IDE et éditeurs
+.vscode/
+.idea/
+
+# Archives et fichiers temporaires
+*.zip
+*.rar
+*.xlsx
+*.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db

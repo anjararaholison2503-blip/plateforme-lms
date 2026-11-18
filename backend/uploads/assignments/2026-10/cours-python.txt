@@ -1,0 +1,25 @@
+Cours : Introduction a Python
+
+LES VARIABLES
+En Python, une variable est creee par simple affectation.
+Le typage est dynamique.
+
+LES LISTES
+Les listes stockent des elements ordonnes.
+On peut ajouter avec append et retirer avec remove.
+
+LES DICTIONNAIRES
+Les dictionnaires stockent des paires cle-valeur.
+On accede aux valeurs avec des crochets.
+
+LES FONCTIONS
+Les fonctions se definissent avec le mot cle def.
+Elles peuvent retourner plusieurs valeurs.
+
+LES CLASSES
+Les classes definissent des objets avec des attributs et methodes.
+Le constructeur est defini avec __init__.
+
+LES MODULES
+Les modules permettent d organiser le code.
+On importe avec import ou from.

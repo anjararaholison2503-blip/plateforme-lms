@@ -1,0 +1,16 @@
+Cours POO PHP : la programmation orientee objet repose sur 4 principes fondamentaux. 
+L encapsulation protege les donnees internes de la classe. 
+L heritage permet a une classe de reutiliser le code d une classe parente. 
+Le polymorphisme permet a des objets de classes differentes de repondre au meme message. 
+L abstraction cache les details d implementation derriere une interface. 
+Une classe est un modele qui definit des proprietes et des methodes. 
+Un objet est une instance concrete d une classe. 
+Le constructeur est appele lors de la creation d un objet. 
+Le destructeur est appele lors de la destruction d un objet. 
+Les methodes magiques commencent par deux underscores. 
+Une interface definit des methodes que les classes doivent implementer. 
+Une classe abstraite ne peut pas etre instanciee directement. 
+Les traits permettent de reutiliser du code dans plusieurs classes. 
+Les namespaces evitent les collisions de noms de classes. 
+Les exceptions permettent de gerer les erreurs proprement. 
+Les design patterns sont des solutions reutilisables a des problemes courants. 

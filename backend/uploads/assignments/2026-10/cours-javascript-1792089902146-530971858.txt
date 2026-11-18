@@ -1,0 +1,27 @@
+Cours : Introduction a JavaScript
+
+LES VARIABLES
+En JavaScript, on peut declarer des variables avec let, const ou var.
+let permet de reassigner la variable plus tard.
+const cree une constante non reassignable.
+
+LES FONCTIONS
+Les fonctions flechees offrent une syntaxe plus concise.
+Une fonction peut etre anonyme et assignee a une variable.
+
+LES OBJETS
+Les objets permettent de regrouper des proprietes.
+On accede aux proprietes avec la notation point.
+
+LES TABLEAUX
+Les tableaux stockent des valeurs indexees.
+La methode map transforme chaque element.
+La methode filter selectionne certains elements.
+
+LES PROMESSES
+Les promesses gerent les operations asynchrones.
+Async et await simplifient l utilisation des promesses.
+
+LE DOM
+Le DOM represente la structure HTML de la page.
+On peut manipuler les elements avec querySelector.

@@ -1,0 +1,568 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+enum UnitType {
+  ESTABLISHMENT
+  FACULTY
+  DEPARTMENT
+  PROGRAM
+  LEVEL
+  CLASS
+  GROUP
+}
+
+enum UserRole {
+  ADMIN
+  TEACHER
+  STUDENT
+  ACCOUNTANT
+  PARENT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+}
+enum InstitutionType {
+  UNIVERSITY
+  HIGH_SCHOOL
+  MIDDLE_SCHOOL
+  CUSTOM
+}
+
+// ==================== CONFIGURATION PLATEFORME ====================
+model PlatformSettings {
+  id                Int              @id @default(autoincrement())
+  platformName      String           @map("platform_name")
+  platformShortName String?          @map("platform_short_name")
+  description       String?          @db.Text
+  logoUrl           String?          @map("logo_url")
+  faviconUrl        String?          @map("favicon_url")
+  primaryColor      String           @default("#3B82F6") @map("primary_color")
+  secondaryColor    String           @default("#1E40AF") @map("secondary_color")
+  defaultLanguage   String           @default("fr") @map("default_language")
+  timezone          String           @default("Africa/Antananarivo")
+  currency          String           @default("MGA")
+  currencySymbol    String           @default("Ar") @map("currency_symbol")
+  academicYear      String?          @map("academic_year")
+  gradeScaleMax     Decimal          @default(20.00) @map("grade_scale_max") @db.Decimal(4, 2)
+  gradeScaleMin     Decimal          @default(0.00) @map("grade_scale_min") @db.Decimal(4, 2)
+  passingGrade      Decimal          @default(10.00) @map("passing_grade") @db.Decimal(4, 2)
+  contactEmail      String?          @map("contact_email")
+  contactPhone      String?          @map("contact_phone")
+  address           String?          @db.Text
+
+  // ═══════════════ NOUVEAUX CHAMPS ═══════════════
+  institutionType   InstitutionType  @default(UNIVERSITY) @map("institution_type")
+  hierarchyModel    Json?            @map("hierarchy_model")    // Modèle personnalisé complet
+  customLabels      Json?            @map("custom_labels")      // Vocabulaire personnalisé
+  onboardingDone    Boolean          @default(false) @map("onboarding_done")
+
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// ==================== STRUCTURE ÉTABLISSEMENT ====================
+model InstitutionUnit {
+  id           Int      @id @default(autoincrement())
+  parentId     Int?     @map("parent_id")
+  name         String
+  code         String?  @unique
+  type         UnitType
+  description  String?  @db.Text
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  courseClasses CourseClass[] @relation("CourseClass")  // ← AJOUTER
+  teachingUnits   TeachingUnit[]      @relation("TeachingUnitUnit")           // ← AJOUTER
+  teachingUnitClasses TeachingUnitClass[] @relation("TeachingUnitClassClass")
+
+  parent         InstitutionUnit?  @relation("UnitHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children       InstitutionUnit[] @relation("UnitHierarchy")
+  users          User[]
+  calendarEvents CalendarEvent[]
+  courses        Course[]         // ← AJOUTER CETTE LIGNE
+
+  @@index([parentId])
+  @@index([type])
+  @@map("institution_units")
+}
+
+// ==================== UTILISATEURS ====================
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  password     String
+  firstName    String     @map("first_name")
+  lastName     String     @map("last_name")
+  phone        String?
+  avatarUrl    String?    @map("avatar_url")
+  role         UserRole   @default(STUDENT)
+  status       UserStatus @default(PENDING)
+  unitId       Int?       @map("unit_id")
+  lastLoginAt  DateTime?  @map("last_login_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  unit         InstitutionUnit? @relation(fields: [unitId], references: [id])
+  refreshTokens RefreshToken[]
+  createdEvents  CalendarEvent[] 
+  createdTeachingUnits TeachingUnit[]    @relation("TeachingUnitCreator")   // ← AJOUTER
+ createdCourses  Course[]          @relation("CourseCreator")   // ← AJOUTER
+  courseTeachers  CourseTeacher[]   @relation("CourseTeacher")   // ← AJOUTER
+  enrollments     Enrollment[]      @relation("Enrollment")      // ← AJOUTER
+  uploadedMaterials    CourseMaterial[]  @relation("CourseMaterialUploader")   // ← AJOUTER
+  notifications        Notification[]    @relation("UserNotifications")  
+  courseAnnouncements   CourseAnnouncement[]   @relation("CourseAnnouncementAuthor") 
+  
+  @@index([email])
+  @@index([role])
+  @@index([unitId])
+  @@map("users")
+}
+
+
+
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(500)
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ==================== CALENDRIER / AGENDA ====================
+enum EventType {
+  COURSE
+  EXAM
+  HOLIDAY
+  MEETING
+  DEADLINE
+  OTHER
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  UNIT
+}
+
+model CalendarEvent {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String?          @db.Text
+  type        EventType        @default(OTHER)
+  visibility  EventVisibility  @default(PUBLIC)
+  startDate   DateTime         @map("start_date")
+  endDate     DateTime         @map("end_date")
+  allDay      Boolean          @default(false) @map("all_day")
+  location    String?
+  color       String?          @default("#3B82F6")
+  unitId      Int?             @map("unit_id")
+  createdById Int              @map("created_by_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  unit      InstitutionUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  createdBy User             @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([startDate])
+  @@index([unitId])
+  @@index([createdById])
+  @@map("calendar_events")
+}
+
+// ==================== COURS ====================
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  PENDING
+}
+
+model Course {
+  id           Int          @id @default(autoincrement())
+  title        String
+  code         String       @unique
+  description  String?      @db.Text
+  credits      Int          @default(0)
+  hours        Int          @default(0)
+  status       CourseStatus @default(DRAFT)
+  color        String?      @default("#3B82F6")
+  coverUrl     String?      @map("cover_url")
+  unitId       Int?         @map("unit_id")
+  createdById  Int          @map("created_by_id")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  // ═══════════════ NOUVEAUX CHAMPS ═══════════════
+  teachingUnitId Int?     @map("teaching_unit_id")    
+  coefficient    Int      @default(1)                 
+  modules      CourseModule[]
+  announcements CourseAnnouncement[] 
+
+  // Relations
+  unit         InstitutionUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  teachingUnit TeachingUnit?    @relation("TeachingUnitCourses", fields: [teachingUnitId], references: [id], onDelete: SetNull)   // ← AJOUTER
+  createdBy    User             @relation("CourseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  sessions     CourseSession[]
+  teachers     CourseTeacher[]
+  classes      CourseClass[]
+  materials    CourseMaterial[]  
+
+  @@index([unitId])
+  @@index([status])
+  @@index([code])
+  @@index([teachingUnitId])   // ← AJOUTER
+  @@map("courses")
+}
+
+model CourseSession {
+  id          Int      @id @default(autoincrement())
+  courseId    Int      @map("course_id")
+  name        String
+  code        String   @unique
+  academicYear String  @map("academic_year")
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  capacity    Int      @default(30)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrollments  Enrollment[]
+
+  @@index([courseId])
+  @@index([academicYear])
+  @@map("course_sessions")
+}
+
+model CourseTeacher {
+  id        Int      @id @default(autoincrement())
+  courseId  Int      @map("course_id")
+  teacherId Int      @map("teacher_id")
+  role      String   @default("MAIN") // MAIN, ASSISTANT
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher User   @relation("CourseTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, teacherId])
+  @@index([courseId])
+  @@index([teacherId])
+  @@map("course_teachers")
+}
+
+model Enrollment {
+  id          Int              @id @default(autoincrement())
+  sessionId   Int              @map("session_id")
+  studentId   Int              @map("student_id")
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now()) @map("enrolled_at")
+  completedAt DateTime?        @map("completed_at")
+  grade       Decimal?         @db.Decimal(5, 2)
+  notes       String?          @db.Text
+
+  session CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student User          @relation("Enrollment", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@map("enrollments")
+}
+
+//mis ç jours
+// ==================== COURS ↔ CLASSE ====================
+model CourseClass {
+  id        Int      @id @default(autoincrement())
+  courseId  Int      @map("course_id")
+  classId   Int      @map("class_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  course Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  class  InstitutionUnit @relation("CourseClass", fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, classId])
+  @@index([courseId])
+  @@index([classId])
+  @@map("course_classes")
+}
+
+
+// ==================== UNITÉ D'ENSEIGNEMENT (UE) ====================
+enum Semester {
+  S1
+  S2
+  S3
+  S4
+  S5
+  S6
+  S7
+  S8
+  S9
+  S10
+}
+
+model TeachingUnit {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  name         String
+  description  String?  @db.Text
+  semester     Semester?
+  unitId       Int?     @map("unit_id")           // Rattachée à une filière/niveau (optionnel)
+  createdById  Int      @map("created_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  unit      InstitutionUnit? @relation("TeachingUnitUnit", fields: [unitId], references: [id], onDelete: SetNull)
+  createdBy User             @relation("TeachingUnitCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  courses   Course[]         @relation("TeachingUnitCourses")
+  classes   TeachingUnitClass[]
+
+  @@index([unitId])
+  @@index([semester])
+  @@map("teaching_units")
+}
+
+// Table de liaison UE ↔ Classes (une UE peut être attribuée à plusieurs classes)
+model TeachingUnitClass {
+  id             Int      @id @default(autoincrement())
+  teachingUnitId Int      @map("teaching_unit_id")
+  classId        Int      @map("class_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  teachingUnit TeachingUnit    @relation(fields: [teachingUnitId], references: [id], onDelete: Cascade)
+  class        InstitutionUnit @relation("TeachingUnitClassClass", fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([teachingUnitId, classId])
+  @@index([teachingUnitId])
+  @@index([classId])
+  @@map("teaching_unit_classes")
+}
+
+// ==================== MATÉRIELS DE COURS (SUPPORTS) ====================
+
+enum MaterialType {
+  PDF
+  VIDEO
+  IMAGE
+  ZIP
+  DOCUMENT
+  LINK
+  OTHER
+}
+
+enum MaterialVisibility {
+  STUDENTS
+  TEACHERS
+  ALL
+  PRIVATE
+}
+
+enum ExpirationStatus {
+  ACTIVE           // Actif, expire dans plus de 7 jours
+  EXPIRING_SOON    // Expire dans moins de 7 jours
+  PENDING_REVIEW   // Expiré, en attente de décision enseignant
+  EXPIRED          // Expiré confirmé
+  EXTENDED         // Durée prolongée
+  ARCHIVED         // Archivé manuellement
+}
+
+model CourseMaterial {
+  id               Int                 @id @default(autoincrement())
+  courseId         Int                 @map("course_id")
+  uploadedById     Int                 @map("uploaded_by_id")
+  title            String
+  description      String?             @db.Text
+  type             MaterialType        @default(OTHER)
+  fileUrl          String              @map("file_url")
+  fileName         String              @map("file_name")
+  fileSize         Int                 @map("file_size")
+  mimeType         String              @map("mime_type")
+  visibility       MaterialVisibility  @default(STUDENTS)
+
+  // Cycle de vie
+  publishedAt         DateTime          @default(now()) @map("published_at")
+  expiresAt           DateTime?         @map("expires_at")
+  expirationStatus    ExpirationStatus  @default(ACTIVE) @map("expiration_status")
+  gracePeriodEndsAt   DateTime?         @map("grace_period_ends_at")
+  expirationNotifiedAt DateTime?        @map("expiration_notified_at")
+
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  course         Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploadedBy     User           @relation("CourseMaterialUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+  notifications  Notification[]
+
+  @@index([courseId])
+  @@index([uploadedById])
+  @@index([expiresAt])
+  @@index([expirationStatus])
+  @@map("course_materials")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+enum NotificationType {
+  MATERIAL_EXPIRING        // J-7 : matériel va expirer
+  MATERIAL_EXPIRING_URGENT // J-1 : dernier jour
+  MATERIAL_EXPIRED         // Jour J : expiration
+  MATERIAL_EXTENDED        // Prolongation
+  MATERIAL_DELETED         // Suppression manuelle
+  COURSE_ANNOUNCEMENT
+  GRADE_PUBLISHED
+  ENROLLMENT
+  SYSTEM
+}
+
+enum NotificationChannel {
+  IN_APP   // Notification dans l'interface
+  EMAIL    // Envoyé par email
+  SMS      // Envoyé par SMS (désactivé pour l'instant)
+}
+
+enum NotificationStatus {
+  PENDING   // En attente d'envoi
+  SENT      // Envoyée
+  FAILED    // Échec d'envoi
+  READ      // Lue par l'utilisateur
+}
+
+model Notification {
+  id           Int                   @id @default(autoincrement())
+  userId       Int                   @map("user_id")
+  type         NotificationType
+  title        String
+  message      String                @db.Text
+  data         Json?                 // Données contextuelles (materialId, courseId, etc.)
+  channel      NotificationChannel   @default(IN_APP)
+  status       NotificationStatus    @default(PENDING)
+
+  // Lien optionnel vers une ressource
+  materialId   Int?                  @map("material_id")
+
+  // Timestamps
+  readAt       DateTime?             @map("read_at")
+  sentAt       DateTime?             @map("sent_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  // Relations
+  user     User            @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  material CourseMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ==================== PROGRAMME / SYLLABUS ====================
+
+model CourseModule {
+  id           Int      @id @default(autoincrement())
+  courseId     Int      @map("course_id")
+  title        String
+  description  String?  @db.Text
+  orderIndex   Int      @default(0) @map("order_index")
+  duration     Int?     // durée estimée en heures
+  isPublished  Boolean  @default(true) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons  CourseLesson[]
+
+  @@index([courseId])
+  @@index([orderIndex])
+  @@map("course_modules")
+}
+
+model CourseLesson {
+  id           Int      @id @default(autoincrement())
+  moduleId     Int      @map("module_id")
+  title        String
+  content      String?  @db.Text       // contenu HTML ou Markdown
+  contentType  LessonContentType @default(TEXT) @map("content_type")
+  videoUrl     String?  @map("video_url")
+  duration     Int?     // durée estimée en minutes
+  orderIndex   Int      @default(0) @map("order_index")
+  isPublished  Boolean  @default(true) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  module   CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@index([moduleId])
+  @@index([orderIndex])
+  @@map("course_lessons")
+}
+
+enum LessonContentType {
+  TEXT
+  VIDEO
+  LINK
+  FILE
+  MIXED
+}
+
+// ==================== ANNONCES DE COURS ====================
+
+enum AnnouncementPriority {
+  NORMAL
+  IMPORTANT
+  URGENT
+}
+
+model CourseAnnouncement {
+  id         Int                   @id @default(autoincrement())
+  courseId   Int                   @map("course_id")
+  authorId   Int                   @map("author_id")
+  title      String
+  content    String                @db.Text
+  priority   AnnouncementPriority  @default(NORMAL)
+  isPinned   Boolean               @default(false) @map("is_pinned")
+  expiresAt  DateTime?             @map("expires_at")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+
+  // Relations
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User   @relation("CourseAnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([isPinned])
+  @@index([expiresAt])
+  @@map("course_announcements")
+}

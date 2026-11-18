@@ -1,0 +1,9 @@
+@echo off
+echo Verification de MySQL...
+netstat -an | find "3306" | find "LISTENING"
+if errorlevel 1 (
+    echo MySQL n'est pas demarre. Demarrage...
+    net start MySQL80
+)
+echo Demarrage du serveur backend...
+npm run dev

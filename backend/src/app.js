@@ -4,14 +4,13 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 
-
 const errorHandler = require('./middlewares/errorHandler');
 const notFound = require('./middlewares/notFound');
 const settingsRoutes = require('./routes/admin/settingsRoutes');
 const authRoutes = require('./routes/common/authRoutes');
 const institutionRoutes = require('./routes/admin/institutionRoutes');
-const dashboardRoutes = require('./routes/common/dashboardRoutes');      // ← VÉRIFIER
-const calendarRoutes = require('./routes/common/calendarRoutes');        // ← VÉRIFIER
+const dashboardRoutes = require('./routes/common/dashboardRoutes');
+const calendarRoutes = require('./routes/common/calendarRoutes');
 const userRoutes = require('./routes/admin/userRoutes');
 const courseRoutes = require('./routes/common/courseRoutes');
 const hierarchyRoutes = require('./routes/admin/hierarchyRoutes');
@@ -28,50 +27,78 @@ const quizRoutes = require('./routes/quizRoutes');
 const mobileMoneyRoutes = require('./routes/admin/mobileMoneyRoutes');
 const examRoutes = require('./routes/admin/examRoutes');
 const gradeRoutes = require('./routes/admin/gradeRoutes');
-const app = express();
 const forumRoutes = require('./routes/common/forumRoutes');
 const aiRoutes = require('./routes/aiRoutes');
-app.use('/api/ai', aiRoutes);
-app.use('/api/forum', forumRoutes);
+
+const app = express();
+
+// ═══════════════════════════════════════════════════════════
+// 1. CORS (DOIT ÊTRE LE TOUT PREMIER)
+// ═══════════════════════════════════════════════════════════
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.options(/.*/, cors());
+
+// ═══════════════════════════════════════════════════════════
+// 2. AUTRES MIDDLEWARES
+// ═══════════════════════════════════════════════════════════
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json({ limit: '600mb' }));
 app.use(express.urlencoded({ extended: true, limit: '600mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use('/api/grades', gradeRoutes);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads/materials', express.static(path.join(__dirname, '../uploads/materials')));
+
+// ═══════════════════════════════════════════════════════════
+// 3. HEALTH CHECK
+// ═══════════════════════════════════════════════════════════
 app.get('/api/health', (req, res) => {
   res.json({ status: 'success', message: 'API LMS opérationnelle', timestamp: new Date() });
 });
 
-// Routes
+// ═══════════════════════════════════════════════════════════
+// 4. ROUTES (TOUTES DÉCLARÉES ICI, APRÈS LES MIDDLEWARES)
+// ═══════════════════════════════════════════════════════════
 app.use('/api/settings', settingsRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/institution', institutionRoutes);
-app.use('/api/dashboard', dashboardRoutes);    // ← VÉRIFIER
-app.use('/api/calendar', calendarRoutes);      // ← VÉRIFIER
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/calendar', calendarRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/courses', courseRoutes);
-app.use('/api/hierarchy', hierarchyRoutes);//← AJOUTER
+app.use('/api/hierarchy', hierarchyRoutes);
 app.use('/api/teaching-units', teachingUnitRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/uploads/materials', express.static(path.join(__dirname, '../uploads/materials')));//route pour servir les fichiers téléchargés
 app.use('/api/programs', courseModuleRoutes);
-app.use('/api/announcements', announcementRoutes);//route pour gérer les annonces
+app.use('/api/announcements', announcementRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/academic-years', academicYearRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/exams', examRoutes);
+app.use('/api/grades', gradeRoutes);
 app.use('/api', quizRoutes);
 app.use('/api/mobile-money', mobileMoneyRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/forum', forumRoutes);
 
+// ═══════════════════════════════════════════════════════════
+// 5. GESTION DES ERREURS
+// ═══════════════════════════════════════════════════════════
 app.use(notFound);
 app.use(errorHandler);
 

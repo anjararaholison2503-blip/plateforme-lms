@@ -10,24 +10,58 @@ export default function AIChatbot() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim()) return;
+  // const handleSend = async (e) => {
+  //   e.preventDefault();
+  //   if (!input.trim()) return;
 
-    const userMsg = input;
-    setMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setInput('');
-    setLoading(true);
+  //   const userMsg = input;
+  //   setMessages(prev => [...prev, { sender: 'user', text: userMsg }]);
+  //   setInput('');
+  //   setLoading(true);
 
-    try {
-      const res = await api.post('/ai/chat', { message: userMsg });
-      setMessages(prev => [...prev, { sender: 'bot', text: res.data.data.reply }]);
-    } catch (err) {
-      setMessages(prev => [...prev, { sender: 'bot', text: "Désolé, je rencontre une erreur technique." }]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  //   try {
+  //     const res = await api.post('/ai/chat', { message: userMsg });
+  //     setMessages(prev => [...prev, { sender: 'bot', text: res.data.data.reply }]);
+  //   } catch (err) {
+  //     setMessages(prev => [...prev, { sender: 'bot', text: "Désolé, je rencontre une erreur technique." }]);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+const handleSend = async (e) => {
+  e.preventDefault();
+  if (!input.trim()) return;
+
+  const userMsg = input;
+  // On ajoute le message de l'utilisateur à l'historique local
+  const updatedMessages = [...messages, { sender: 'user', text: userMsg }];
+  setMessages(updatedMessages);
+  setInput('');
+  setLoading(true);
+
+  try {
+    // ⬇️ ON ENVOIE L'HISTORIQUE (sans le message d'accueil du bot)
+    const history = messages
+      .filter(m => m.sender !== 'bot' || messages.indexOf(m) > 0) // On ignore le tout premier message
+      .map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      }));
+
+    const res = await api.post('/ai/chat', { 
+      message: userMsg,
+      history: history // ⬅️ Ajout de l'historique
+    });
+    
+    setMessages(prev => [...prev, { sender: 'bot', text: res.data.data.reply }]);
+  } catch (err) {
+    setMessages(prev => [...prev, { sender: 'bot', text: "Désolé, je rencontre une erreur technique." }]);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <>

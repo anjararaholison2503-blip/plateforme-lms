@@ -19,3 +19,4 @@ node_modules/
 # Fichiers système
 .DS_Store
 Thumbs.db"backend/uploads/receipts/" 
+backend/uploads/receipts/ 

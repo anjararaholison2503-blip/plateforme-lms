@@ -88,7 +88,8 @@ export default function Sidebar({ isOpen, onClose }) {
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+        {/* border-b */}
+        <div className="flex items-center justify-between gap-3 px-5 py-4  border-gray-100 dark:border-slate-700"> 
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center">
               <GraduationCap size={22} className="text-white" />

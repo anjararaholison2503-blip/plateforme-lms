@@ -22,7 +22,7 @@ export default function EnrollPage() {
               <GraduationCap size={22} className="text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 dark:text-slate-100">MonCampus</h1>
+              <h1 className="font-bold text-gray-900 dark:text-slate-100">MasterClass</h1>
               <p className="text-xs text-gray-500 dark:text-slate-400">Portail d'inscription</p>
             </div>
           </Link>

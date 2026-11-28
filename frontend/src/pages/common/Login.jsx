@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, GraduationCap, BookOpen, Calendar, Shield } from 'lucide-react';
+import { Mail, Lock, GraduationCap, BookOpen, ClipboardCheck, TrendingUp } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -24,7 +24,7 @@ export default function Login() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.userMessage || 'Erreur de connexion');
+      setError(err.userMessage || 'Connexion impossible. Vérifiez vos identifiants et réessayez.');
     } finally {
       setLoading(false);
     }
@@ -41,15 +41,15 @@ export default function Login() {
                   <GraduationCap size={22} />
                 </div>
                 <div className="login-page__brand-text">
-                  <strong>MonCampus</strong>
-                  <span>Plateforme de gestion pédagogique</span>
+                  <strong>MASTERCLASS LMS</strong>
+                  <span>Plateforme de formation en ligne</span>
                 </div>
               </div>
 
-              <h2>Gérez votre établissement, simplement.</h2>
+              <h2>Votre formation, au même endroit.</h2>
               <p className="login-page__visual-lead">
-                Un espace unique pour suivre les cours, les notes, les emplois du temps
-                et la communication avec toute la communauté éducative.
+                Retrouvez vos cours, passez vos évaluations et consultez vos notes
+                depuis votre espace personnel.
               </p>
 
               <ul className="login-page__features">
@@ -57,23 +57,23 @@ export default function Login() {
                   <span className="login-page__feature-icon">
                     <BookOpen size={16} />
                   </span>
-                  Suivi pédagogique en temps réel
+                  Cours et ressources pédagogiques
                 </li>
                 <li>
                   <span className="login-page__feature-icon">
-                    <Calendar size={16} />
+                    <ClipboardCheck size={16} />
                   </span>
-                  Emplois du temps et présences
+                  Quiz et évaluations en ligne
                 </li>
                 <li>
                   <span className="login-page__feature-icon">
-                    <Shield size={16} />
+                    <TrendingUp size={16} />
                   </span>
-                  Données sécurisées et protégées
+                  Notes et progression
                 </li>
               </ul>
             </div>
-            <p className="login-page__visual-footer">© 2026 MonCampus. Tous droits réservés.</p>
+            <p className="login-page__visual-footer">© 2026 MASTERCLASS LMS. Tous droits réservés.</p>
           </div>
         </aside>
 
@@ -83,14 +83,14 @@ export default function Login() {
               <div className="login-page__logo">
                 <GraduationCap size={32} />
               </div>
-              <h1>MonCampus</h1>
-              <p>Plateforme de gestion pédagogique</p>
+              <h1>MASTERCLASS LMS</h1>
+              <p>Plateforme de formation en ligne</p>
             </div>
 
             <div className="login-page__card">
               <h2>Connexion</h2>
               <p className="login-page__card-lead">
-                Bienvenue ! Connectez-vous pour accéder à votre espace.
+                Saisissez vos identifiants pour accéder à votre espace.
               </p>
 
               {error && (
@@ -101,12 +101,12 @@ export default function Login() {
 
               <form onSubmit={handleSubmit}>
                 <Input
-                  label="Email"
+                  label="Adresse e-mail"
                   type="email"
                   icon={Mail}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="votre.email@exemple.com"
+                  placeholder="nom@exemple.com"
                   required
                 />
 
@@ -125,9 +125,6 @@ export default function Login() {
                 </Button>
               </form>
 
-              <p className="login-page__hint">
-                Compte de démonstration : admin@lms.local / Admin@123
-              </p>
             </div>
           </div>
         </div>

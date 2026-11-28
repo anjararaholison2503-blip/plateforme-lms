@@ -53,7 +53,7 @@ export default function StudentCourses() {
     <>
       <PageHeader
         title="Mes cours"
-        subtitle={`Cours de ma classe : ${user?.unit?.name || 'Aucune classe'}`}
+        subtitle={`Cours de ma classe : ${user?.unit?.name || 'L1-INFO-A'}`}
         badge="Étudiant"
       />
 
@@ -66,7 +66,7 @@ export default function StudentCourses() {
 
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
+          {/* <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
                 <BookOpen size={20} className="text-emerald-600 dark:text-emerald-400" />
@@ -80,9 +80,9 @@ export default function StudentCourses() {
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
+          {/* <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
                 <Award size={20} className="text-blue-600 dark:text-blue-400" />
@@ -96,9 +96,9 @@ export default function StudentCourses() {
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
 
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
+          {/* <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 p-5">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center">
                 <FileText size={20} className="text-violet-600 dark:text-violet-400" />
@@ -112,7 +112,7 @@ export default function StudentCourses() {
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Barre d'outils */}
